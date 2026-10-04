@@ -108,40 +108,39 @@ The knowledge base is primarily English-language content, while multilingual ret
 
 The implemented pipeline is:
 
-```text
-Official Sources
-    ->
-Fetch + Parse
-    ->
-Clean + Chunk + Metadata
-    ->
-164 Searchable Chunks
-    ->
-Cohere Multilingual Embeddings
-    ->
-Persistent Chroma Vector Store
+### Offline ingestion flow
 
-At query time:
+```mermaid
+flowchart TD
+    A["Official Sources"] --> B["Fetch + Parse"]
+    B --> C["Clean + Chunk + Metadata"]
+    C --> D["164 Searchable Chunks"]
+    D --> E["Cohere Multilingual Embeddings"]
+    E --> F["Persistent Chroma Vector Store"]
+    D --> G["Arabic / English Tokenization"]
+    G --> H["BM25 Lexical Index"]
+```
 
-Arabic / English Query
-    ->
-Vector Search + BM25 Search
-    ->
-Hybrid Fusion with RRF
-    ->
-20 Candidate Chunks
-    ->
-Cohere Multilingual Reranker
-    ->
-Top 5 Evidence Chunks
-    ->
-Context Builder
-    ->
-Command A Grounded Draft
-    ->
-Command A Review / Refinement
-    ->
-Clean Answer + Source Attribution
+### Query-time flow
+
+```mermaid
+flowchart TD
+    A["Arabic / English Query"] --> B["Vector Search"]
+    A --> C["BM25 Search"]
+    B --> D["Hybrid Fusion with RRF"]
+    C --> D
+    D --> E["20 Candidate Chunks"]
+    E --> F["Cohere Multilingual Reranker"]
+    F --> G["Top 5 Evidence Chunks"]
+    G --> H["Context Builder"]
+    G --> I["Source Attribution Builder"]
+    H --> J["Command A Grounded Draft"]
+    J --> K{"Answer Review Enabled?"}
+    K -->|No - public default| L["Answer Cleanup"]
+    K -->|Yes - optional review| M["Command A Review / Refinement"]
+    M --> L
+    L --> N["Clean Answer + Sources"]
+    I --> N
 ```
 
 The current implementation uses:

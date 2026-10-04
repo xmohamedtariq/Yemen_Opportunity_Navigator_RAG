@@ -32,24 +32,18 @@ Measured quality, cost, and latency are evaluated separately. Retrieval quality 
 
 The ingestion pipeline is:
 
-```text
-sources.csv
-    ->
-Fetch HTML/PDF
-    ->
-Store / parse content
-    ->
-Clean useful text
-    ->
-Source-quality audit
-    ->
-Chunk validated documents
-    ->
-Chunk-quality audit
-    ->
-Generate document embeddings
-    ->
-Persist vectors + metadata in Chroma
+```mermaid
+flowchart TD
+    A["sources.csv"] --> B["Fetch HTML / PDF"]
+    B --> C["Store / Parse Content"]
+    C --> D["Clean Useful Text"]
+    D --> E["Source-Quality Audit"]
+    E --> F["Chunk Validated Documents"]
+    F --> G["Chunk-Quality Audit"]
+    G --> H["Generate Document Embeddings"]
+    H --> I["Persist Vectors + Metadata in Chroma"]
+    G --> J["Arabic / English Tokenization"]
+    J --> K["BM25 Lexical Index"]
 ```
 
 The corpus also feeds a BM25 lexical index.
@@ -206,18 +200,15 @@ BM25 receives the raw query text; it does **not** depend on the semantic query e
 
 At query time two retrieval signals run:
 
-```text
-User Query
-   |-----------------------------|
-   v                             v
-Cohere Query Embedding        Raw Query
-   v                             v
-Chroma Vector Search          BM25 Search
-   |-------------|---------------|
-                 v
-       Reciprocal Rank Fusion
-                 v
-          Hybrid Candidates
+```mermaid
+flowchart TD
+    A["User Query"] --> B["Cohere Query Embedding"]
+    A --> C["Raw Query"]
+    B --> D["Chroma Vector Search"]
+    C --> E["BM25 Search"]
+    D --> F["Reciprocal Rank Fusion"]
+    E --> F
+    F --> G["Hybrid Candidates"]
 ```
 
 The hybrid merge broadens candidate coverage before the learned reranking stage.
@@ -239,16 +230,12 @@ Final top_n = 5
 
 Query-time path:
 
-```text
-Vector + BM25
-    ->
-RRF hybrid merge
-    ->
-20 candidate chunks
-    ->
-Cohere multilingual reranker
-    ->
-Top 5 evidence chunks
+```mermaid
+flowchart LR
+    A["Vector + BM25"] --> B["RRF Hybrid Merge"]
+    B --> C["20 Candidate Chunks"]
+    C --> D["Cohere Multilingual Reranker"]
+    D --> E["Top 5 Evidence Chunks"]
 ```
 
 The reranker is a critical part of the final architecture because raw hybrid fusion alone did not outperform vector-only retrieval on Recall@5.
@@ -295,16 +282,13 @@ The same retrieved evidence also feeds the source-attribution builder.
 
 Conceptually:
 
-```text
-Top 5 Evidence
-   |-------------------|
-   v                   v
-Context Builder     Source Builder
-   v                   |
-Generation             |
-   |-------------------|
-           v
-    Answer + Sources
+```mermaid
+flowchart TD
+    A["Top 5 Evidence"] --> B["Context Builder"]
+    A --> C["Source Builder"]
+    B --> D["Grounded Generation"]
+    D --> E["Answer + Sources"]
+    C --> E
 ```
 
 ## 13. Generation
@@ -315,32 +299,21 @@ Generation model:
 command-a-03-2025
 ```
 
-The current **public deployment default** uses one grounded generation pass:
-
-```text
-Top-5 grounded context
-    ->
-Grounded draft
-    ->
-Public answer cleanup
-```
-
-A second draft-plus-context review remains available for reproducibility and quality experiments:
+The current **public deployment default** uses one grounded generation pass. A second draft-plus-context review remains available for reproducibility and quality experiments through:
 
 ```env
 RAG_ENABLE_ANSWER_REVIEW=1
 ```
 
-With review enabled, the evaluated benchmark path becomes:
+The generation path is:
 
-```text
-Top-5 grounded context
-    ->
-Pass 1: grounded draft
-    ->
-Pass 2: draft + context review
-    ->
-Public answer cleanup
+```mermaid
+flowchart TD
+    A["Top-5 Grounded Context"] --> B["Pass 1: Grounded Draft"]
+    B --> C{"Answer Review Enabled?"}
+    C -->|No - public default| D["Public Answer Cleanup"]
+    C -->|Yes - evaluated benchmark| E["Pass 2: Draft + Context Review"]
+    E --> D
 ```
 
 The second pass is an explicit quality/cost/latency trade-off.

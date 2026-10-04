@@ -134,8 +134,8 @@ flowchart TD
     M --> R
     R --> S["Streamlit UI"]
 
-    D -. "Vector failure → use BM25 result" .-> E
-    N -. "Generation unavailable / quota exhausted" .-> T["Retrieved Official Sources + User Notice"]
+    D -. Vector failure - use BM25 result .-> E
+    N -. Generation unavailable or quota exhausted .-> T["Retrieved Official Sources + User Notice"]
     T --> S
 ```
 
@@ -348,16 +348,12 @@ Final top_n       = 5
 
 Pipeline:
 
-```text
-Vector + BM25
-    ->
-RRF fusion
-    ->
-20 candidate chunks
-    ->
-Cohere reranker
-    ->
-Top 5 evidence chunks
+```mermaid
+flowchart LR
+    A["Vector + BM25"] --> B["RRF Fusion"]
+    B --> C["20 Candidate Chunks"]
+    C --> D["Cohere Multilingual Reranker"]
+    D --> E["Top 5 Evidence Chunks"]
 ```
 
 Final retrieval performance:
@@ -412,32 +408,21 @@ Generation model:
 command-a-03-2025
 ```
 
-The current public deployment defaults to a single grounded generation pass:
-
-```text
-Top-5 Grounded Context
-        ->
-Grounded Draft
-        ->
-Public Answer Cleanup
-```
-
-A second draft-plus-context review remains available for reproducibility and quality experiments:
+The current public deployment defaults to a single grounded generation pass, while the evaluated two-pass review remains available through:
 
 ```env
 RAG_ENABLE_ANSWER_REVIEW=1
 ```
 
-With review enabled:
+The generation flow is:
 
-```text
-Top-5 Grounded Context
-        ->
-Pass 1: Grounded Draft
-        ->
-Pass 2: Draft + Context Review
-        ->
-Public Answer Cleanup
+```mermaid
+flowchart TD
+    A["Top-5 Grounded Context"] --> B["Pass 1: Grounded Draft"]
+    B --> C{"Answer Review Enabled?"}
+    C -->|No - public default| D["Public Answer Cleanup"]
+    C -->|Yes - evaluated benchmark| E["Pass 2: Draft + Context Review"]
+    E --> D
 ```
 
 The reported RAGAS, cost, and latency benchmarks were produced using this **evaluated two-pass configuration**. The public deployment now defaults to one Chat call to reduce API consumption and latency while preserving the option to reproduce the evaluated path.
@@ -1040,12 +1025,10 @@ The final decision is therefore:
 
 This separates candidate recall from final context precision:
 
-```text
-20 broad hybrid candidates
-        ->
-learned reranker
-        ->
-5 final evidence chunks
+```mermaid
+flowchart LR
+    A["20 Broad Hybrid Candidates"] --> B["Learned Multilingual Reranker"]
+    B --> C["5 Final Evidence Chunks"]
 ```
 
 The current golden set achieved 100% Recall@5 with this configuration.
@@ -1109,21 +1092,13 @@ Potential next steps include:
 
 Architecture changes should trigger the relevant regression tests.
 
-```text
-Embedding model change
-    -> rerun Recall@5
-
-BM25 / RRF / reranker change
-    -> rerun Recall@5 + RAGAS
-
-Generation prompt/model change
-    -> rerun RAGAS
-
-Generation model change
-    -> rerun RAGAS + cost profile
-
-Deployment/network change
-    -> rerun latency profile
+```mermaid
+flowchart LR
+    A["Embedding Model Change"] --> A1["Rerun Recall@5"]
+    B["BM25 / RRF / Reranker Change"] --> B1["Rerun Recall@5 + RAGAS"]
+    C["Generation Prompt Change"] --> C1["Rerun RAGAS"]
+    D["Generation Model Change"] --> D1["Rerun RAGAS + Cost Profile"]
+    E["Deployment / Network Change"] --> E1["Rerun Latency Profile"]
 ```
 
 This prevents improvements in one dimension from silently degrading another.
