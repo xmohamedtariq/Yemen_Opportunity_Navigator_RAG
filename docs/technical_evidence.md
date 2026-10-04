@@ -222,26 +222,15 @@ This metadata is important because a RAG answer without provenance may be inform
 
 The implemented ingestion path can be represented as:
 
-```text
-Official source
-    ↓
-Fetch / parse
-    ↓
-Clean / normalize
-    ↓
-Chunk
-    ↓
-Attach metadata
-    ↓
-Document embedding
-    ↓
-Persistent Chroma vector store
-
-Chunk corpus
-    ↓
-Arabic/English tokenization
-    ↓
-BM25 lexical index
+```mermaid
+flowchart TD
+    A["Official Source"] --> B["Fetch / Parse"]
+    B --> C["Clean / Normalize"]
+    C --> D["Chunk + Metadata"]
+    D --> E["Document Embedding"]
+    E --> F["Persistent Chroma Vector Store"]
+    D --> G["Arabic / English Tokenization"]
+    G --> H["BM25 Lexical Index"]
 ```
 
 The vector and lexical search paths therefore originate from the **same underlying chunk corpus**, but represent the text differently.
@@ -347,14 +336,11 @@ The source code opens a persistent Chroma client under the repository data direc
 
 At query time:
 
-```text
-Question
-   ↓
-Multilingual query embedding
-   ↓
-Chroma similarity search
-   ↓
-Semantically related chunks
+```mermaid
+flowchart LR
+    A["Question"] --> B["Multilingual Query Embedding"]
+    B --> C["Chroma Similarity Search"]
+    C --> D["Semantically Related Chunks"]
 ```
 
 ### Why vector search is useful
@@ -387,14 +373,11 @@ The BM25 path receives the **raw query text** rather than the query embedding.
 
 Conceptually:
 
-```text
-Raw query
-   ↓
-Arabic/English normalization/tokenization
-   ↓
-BM25
-   ↓
-Keyword-ranked chunks
+```mermaid
+flowchart LR
+    A["Raw Query"] --> B["Arabic / English Normalization + Tokenization"]
+    B --> C["BM25"]
+    C --> D["Keyword-Ranked Chunks"]
 ```
 
 ### Why BM25 is retained
@@ -427,14 +410,13 @@ The implemented hybrid retriever merges rankings using an RRF-style approach.
 
 Conceptually:
 
-```text
-                 ┌─ Vector ranking
-Query ───────────┤
-                 └─ BM25 ranking
-                         ↓
-                  Rank fusion / RRF
-                         ↓
-                 Hybrid candidates
+```mermaid
+flowchart TD
+    A["Query"] --> B["Vector Ranking"]
+    A --> C["BM25 Ranking"]
+    B --> D["Rank Fusion / RRF"]
+    C --> D
+    D --> E["Hybrid Candidates"]
 ```
 
 ### Measured result before reranking
@@ -480,16 +462,12 @@ TOP_N = 5
 
 The pipeline therefore follows:
 
-```text
-Vector + BM25
-      ↓
-Hybrid/RRF merge
-      ↓
-20 candidate chunks
-      ↓
-Cohere multilingual reranker
-      ↓
-Top 5 chunks
+```mermaid
+flowchart LR
+    A["Vector + BM25"] --> B["Hybrid / RRF Merge"]
+    B --> C["20 Candidate Chunks"]
+    C --> D["Cohere Multilingual Reranker"]
+    D --> E["Top 5 Chunks"]
 ```
 
 ### Why reranking is important
@@ -585,12 +563,10 @@ This context is then provided to the generation pipeline.
 
 Conceptually:
 
-```text
-Top-5 reranked evidence
-          ↓
-Context Builder
-          ↓
-Grounded generation prompt
+```mermaid
+flowchart LR
+    A["Top-5 Reranked Evidence"] --> B["Context Builder"]
+    B --> C["Grounded Generation Prompt"]
 ```
 
 The aim is to force answer generation to operate on the retrieved evidence rather than relying on general model knowledge.
@@ -607,33 +583,24 @@ review_answer(...)
 generate_answer(...)
 ```
 
-The **public deployment default** is:
-
-```text
-Top-5 context
-     ↓
-Pass 1 — grounded draft
-     ↓
-Clean public answer
-```
-
-A second draft-plus-context review can be re-enabled with:
+The **public deployment default** is one grounded generation pass. A second draft-plus-context review can be re-enabled with:
 
 ```env
 RAG_ENABLE_ANSWER_REVIEW=1
 ```
 
-The measured cost profile confirms **2 Chat calls per normal query** across the 30-question benchmark because that benchmark used the evaluated two-pass path:
+The complete generation decision flow is:
 
-```text
-Top-5 context
-     ↓
-Pass 1 — grounded draft
-     ↓
-Pass 2 — draft + evidence review
-     ↓
-Clean public answer
+```mermaid
+flowchart TD
+    A["Top-5 Context"] --> B["Pass 1 — Grounded Draft"]
+    B --> C{"Answer Review Enabled?"}
+    C -->|No - public default| D["Clean Public Answer"]
+    C -->|Yes - evaluated benchmark| E["Pass 2 — Draft + Evidence Review"]
+    E --> D
 ```
+
+The measured cost profile confirms **2 Chat calls per normal query** across the 30-question benchmark because that benchmark used the evaluated two-pass path.
 
 ### Engineering rationale
 
@@ -703,10 +670,12 @@ This enables the UI to render professional source cards while retaining richer f
 
 Conceptually:
 
-```text
-Top-5 evidence
-   ├─→ LLM context → answer
-   └─→ source builder → source cards
+```mermaid
+flowchart TD
+    A["Top-5 Evidence"] --> B["LLM Context"]
+    B --> C["Grounded Answer"]
+    A --> D["Source Builder"]
+    D --> E["Source Cards"]
 ```
 
 This is a stronger architecture than asking the LLM to invent or reconstruct citations from memory.
@@ -717,41 +686,29 @@ This is a stronger architecture than asking the LLM to invent or reconstruct cit
 
 The complete implemented path can be summarized as:
 
-```text
-User
- ↓
-Streamlit
- ↓
-Query
- ├────────────────────────────┐
- ↓                            ↓
-Multilingual embedding        Raw query
- ↓                            ↓
-Chroma vector search          BM25 search
- └─────────────┬──────────────┘
-               ↓
-          Hybrid + RRF
-               ↓
-       20 candidate chunks
-               ↓
-        Cohere reranker
-               ↓
-             Top 5
-       ┌───────┴────────┐
-       ↓                ↓
-Context Builder    Source Builder
-       ↓                │
-Command A Pass 1        │
-       ↓                │
-Optional Review          │
-(enabled for benchmark)  │
-       ↓                │
-Answer Cleanup          │
-       └───────┬────────┘
-               ↓
-       Answer + Sources
-               ↓
-          Streamlit UI
+```mermaid
+flowchart TD
+    A["User"] --> B["Streamlit UI"]
+    B --> C["Query"]
+    C --> D["Multilingual Query Embedding"]
+    C --> E["Raw Query"]
+    D --> F["Chroma Vector Search"]
+    E --> G["BM25 Search"]
+    F --> H["Hybrid + RRF"]
+    G --> H
+    H --> I["20 Candidate Chunks"]
+    I --> J["Cohere Multilingual Reranker"]
+    J --> K["Top 5 Evidence"]
+    K --> L["Context Builder"]
+    K --> M["Source Builder"]
+    L --> N["Command A Pass 1"]
+    N --> O{"Answer Review Enabled?"}
+    O -->|Yes - benchmark| P["Optional Review"]
+    O -->|No - public default| Q["Answer Cleanup"]
+    P --> Q
+    Q --> R["Answer + Sources"]
+    M --> R
+    R --> S["Rendered in Streamlit UI"]
 ```
 
 ---
@@ -1139,11 +1096,11 @@ Engineering response:
 
 A production-oriented engineering report should show:
 
-```text
-problem
-→ diagnosis
-→ fix
-→ verification
+```mermaid
+flowchart LR
+    A["Problem"] --> B["Diagnosis"]
+    B --> C["Fix"]
+    C --> D["Verification"]
 ```
 
 rather than presenting only the final success state.
@@ -1156,12 +1113,10 @@ The web application includes a Supabase authentication layer.
 
 The architecture diagram represents:
 
-```text
-User
- ↓
-Streamlit UI
- ↕
-Supabase Auth
+```mermaid
+flowchart TD
+    A["User"] --> B["Streamlit UI"]
+    B <--> C["Supabase Auth"]
 ```
 
 Authentication is separate from retrieval and generation.
@@ -1435,21 +1390,13 @@ Every meaningful architecture change should trigger relevant regression evaluati
 
 Examples:
 
-```text
-embedding change
-→ rerun retrieval evaluation
-
-retrieval/reranker change
-→ rerun Recall@5 + RAGAS
-
-prompt/generation change
-→ rerun RAGAS
-
-model change
-→ rerun RAGAS + cost profile
-
-hosting/network change
-→ rerun latency profile
+```mermaid
+flowchart LR
+    A["Embedding Change"] --> A1["Rerun Retrieval Evaluation"]
+    B["Retrieval / Reranker Change"] --> B1["Rerun Recall@5 + RAGAS"]
+    C["Prompt / Generation Change"] --> C1["Rerun RAGAS"]
+    D["Model Change"] --> D1["Rerun RAGAS + Cost Profile"]
+    E["Hosting / Network Change"] --> E1["Rerun Latency Profile"]
 ```
 
 ---
