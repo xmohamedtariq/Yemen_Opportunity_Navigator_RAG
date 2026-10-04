@@ -89,77 +89,73 @@ Yemen Opportunity Navigator addresses this by retrieving evidence from curated o
 
 ---
 
-## Architecture
+## System Architecture
 
 ![Yemen Opportunity Navigator Architecture](docs/charts/architecture_diagram.png)
 
 > The architecture diagram reflects the **current production-safe default**: one grounded generation pass per uncached normal query, with the second review pass optional. The RAGAS, cost, and latency values shown in the diagram are historical measured evidence from the evaluated **two-pass benchmark configuration**.
 
-The current public query pipeline is:
+### Query-Time RAG Execution Flow
 
-```text
-Arabic / English Query
-        |
-        |----------------------------|
-        v                            v
-Cohere Query Embedding           Raw Query
-        v                            v
-Chroma Vector Search            BM25 Search
-        |                            |
-        |---- fallback to BM25 ------|
-                     v
-               Hybrid + RRF
-                     v
-              20 Candidates
-                     v
-        Cohere Multilingual Reranker
-          |                  |
-          | success          | failure
-          v                  v
-       Top 5         Existing Hybrid/BM25 Order
-          |__________________|
-                     v
-              Top-5 Evidence
-              |-----------|
-              v           v
-       Context Builder  Source Builder
-              v           |
-    Command A Grounded Draft
-              v           |
-   Optional Context Review
-   (RAG_ENABLE_ANSWER_REVIEW=1)
-              v           |
-        Answer Cleanup    |
-              |-----------|
-                     v
-             Answer + Sources
-                     v
-                Streamlit UI
+The following flowchart shows how a live Arabic or English query moves through retrieval, fusion, reranking, grounded generation, source attribution, and production-safe fallback handling.
 
-If generation is unavailable because of quota/rate limits or a provider failure,
-the retrieved official sources are still returned with a user-facing notice.
+```mermaid
+flowchart TD
+    A["Arabic / English Query"]
+
+    A --> B["Cohere Query Embedding"]
+    A --> C["Raw Query"]
+
+    B --> D["Chroma Vector Search"]
+    C --> E["BM25 Search"]
+
+    D --> F["Hybrid + RRF"]
+    E --> F
+
+    F --> G["20 Candidates"]
+    G --> H["Cohere Multilingual Reranker"]
+
+    H -->|Success| I["Top 5 Reranked Chunks"]
+    H -->|Failure| J["Keep Existing Hybrid / BM25 Order"]
+
+    I --> K["Top-5 Evidence"]
+    J --> K
+
+    K --> L["Context Builder"]
+    K --> M["Source Builder"]
+
+    L --> N["Command A Grounded Draft"]
+    N --> O{"Answer Review Enabled?"}
+    O -->|Yes| P["Optional Context Review"]
+    O -->|No| Q["Answer Cleanup"]
+    P --> Q
+
+    Q --> R["Answer + Sources"]
+    M --> R
+    R --> S["Streamlit UI"]
+
+    D -. "Vector failure → use BM25 result" .-> E
+    N -. "Generation unavailable / quota exhausted" .-> T["Retrieved Official Sources + User Notice"]
+    T --> S
 ```
 
-The offline ingestion path is:
+> **Production reliability:** monthly or trial quota exhaustion is treated as non-retryable. Transient provider/network failures may be retried, vector-search failure falls back to BM25, reranker failure preserves the existing hybrid/BM25 ordering, and generation failure still returns retrieved official sources with a clear user-facing notice.
 
-```text
-Official Sources
-    ->
-Fetch / Parse
-    ->
-Clean / Normalize
-    ->
-Chunk + Metadata
-    ->
-Document Embeddings
-    ->
-Persistent Chroma Store
+### Offline Knowledge Ingestion Flow
 
-Same chunk corpus
-    ->
-Arabic/English tokenization
-    ->
-BM25 lexical index
+The offline ingestion pipeline prepares one validated chunk corpus for both semantic vector retrieval and lexical BM25 retrieval.
+
+```mermaid
+flowchart TD
+    A["Official Sources"] --> B["Fetch / Parse"]
+    B --> C["Clean / Normalize"]
+    C --> D["Chunk + Metadata"]
+
+    D --> E["Document Embeddings"]
+    E --> F["Persistent Chroma Store"]
+
+    D --> G["Arabic / English Tokenization"]
+    G --> H["BM25 Lexical Index"]
 ```
 
 For a deeper architecture explanation, see:
