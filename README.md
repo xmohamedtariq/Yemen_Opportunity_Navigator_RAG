@@ -6,10 +6,9 @@ A bilingual, evidence-grounded Retrieval-Augmented Generation (RAG) system for h
 
 ## Live Demo
 
-**Streamlit:** [https://yemen-opportunity-navigator.streamlit.app](https://yemen-opportunity-navigator.streamlit.app)  
-**Hugging Face:** [https://huggingface.co/spaces/xmohamedtariq/Yemen-Opportunity-Navigator](https://huggingface.co/spaces/xmohamedtariq/Yemen-Opportunity-Navigator)  
-**GitHub Repository:** [https://github.com/xmohamedtariq/Yemen_Opportunity_Navigator_RAG](https://github.com/xmohamedtariq/Yemen_Opportunity_Navigator_RAG)
-
+[![Live Demo - Streamlit](https://img.shields.io/badge/Live_Demo-Streamlit-00C7BD?style=for-the-badge&labelColor=555555)](https://yemen-opportunity-navigator.streamlit.app)
+[![Hugging Face](https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=000000)](https://huggingface.co/spaces/xmohamedtariq/Yemen-Opportunity-Navigator)
+[![GitHub](https://img.shields.io/badge/GitHub-555555?style=for-the-badge&logo=github&logoColor=white)](https://github.com/xmohamedtariq/Yemen_Opportunity_Navigator_RAG)
 ---
 
 ## Project at a Glance
